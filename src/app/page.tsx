@@ -1,0 +1,111 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useHomePuzzles } from "@/features/puzzle/PuzzleProvider";
+import { BottomNav } from "@/components/layout/BottomNav";
+import { PrimaryButton } from "@/components/ui/Sheet";
+
+export default function HomePage() {
+  const { projects, create, remove } = useHomePuzzles();
+  const router = useRouter();
+  const [name, setName] = useState("Mon puzzle");
+  const [expected, setExpected] = useState(500);
+
+  return (
+    <main className="mx-auto min-h-dvh max-w-lg px-4 pb-28 pt-8">
+      <header className="mb-8">
+        <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-400/90">
+          Puzzle Solver 2D
+        </p>
+        <h1 className="mt-2 font-[family-name:var(--font-display)] text-4xl leading-none tracking-tight text-white">
+          V5
+        </h1>
+        <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-400">
+          Moteur géométrie → matching → groupes. L&apos;IA assiste, elle
+          n&apos;invente pas.
+        </p>
+      </header>
+
+      <section className="mb-8 space-y-3 rounded-2xl border border-white/10 bg-[#12151a] p-4">
+        <h2 className="text-sm font-medium text-white">Nouveau puzzle</h2>
+        <label className="block text-xs text-zinc-400">
+          Nom
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
+          />
+        </label>
+        <label className="block text-xs text-zinc-400">
+          Nombre de pièces attendu
+          <input
+            type="number"
+            min={20}
+            max={5000}
+            value={expected}
+            onChange={(e) => setExpected(Number(e.target.value) || 0)}
+            className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
+          />
+        </label>
+        <PrimaryButton
+          onClick={() => {
+            const p = create(name.trim() || "Puzzle", expected);
+            router.push(`/puzzle/${p.id}/scanner`);
+          }}
+        >
+          Créer & scanner
+        </PrimaryButton>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+          Projets
+        </h2>
+        {projects.length === 0 && (
+          <p className="text-sm text-zinc-500">Aucun puzzle pour le moment.</p>
+        )}
+        {projects.map((p) => (
+          <article
+            key={p.id}
+            className="rounded-2xl border border-white/10 bg-[#12151a] p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base text-white">{p.name}</h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {p.pieces.length}/{p.expectedPieces} pièces ·{" "}
+                  {p.progress.estimatedPercent}% · {p.groups.length} groupes
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-zinc-500"
+                onClick={() => remove(p.id)}
+              >
+                Suppr.
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Link
+                href={`/puzzle/${p.id}/scanner`}
+                className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-cyan-500/15 text-sm text-cyan-200"
+              >
+                Ouvrir
+              </Link>
+              <Link
+                href={`/puzzle/${p.id}/matches`}
+                className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-white/5 text-sm text-zinc-300"
+              >
+                Associations
+              </Link>
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <BottomNav />
+    </main>
+  );
+}
