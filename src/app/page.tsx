@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useHomePuzzles } from "@/features/puzzle/PuzzleProvider";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { PrimaryButton } from "@/components/ui/Sheet";
 
 export default function HomePage() {
   const { projects, create, remove } = useHomePuzzles();
@@ -30,33 +29,47 @@ export default function HomePage() {
 
       <section className="mb-8 space-y-3 rounded-2xl border border-white/10 bg-[#12151a] p-4">
         <h2 className="text-sm font-medium text-white">Nouveau puzzle</h2>
-        <label className="block text-xs text-zinc-400">
-          Nom
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
-          />
-        </label>
-        <label className="block text-xs text-zinc-400">
-          Nombre de pièces attendu
-          <input
-            type="number"
-            min={20}
-            max={5000}
-            value={expected}
-            onChange={(e) => setExpected(Number(e.target.value) || 0)}
-            className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
-          />
-        </label>
-        <PrimaryButton
-          onClick={() => {
-            const p = create(name.trim() || "Puzzle", expected);
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            const puzzleName =
+              String(fd.get("name") ?? name).trim() || "Puzzle";
+            const pieceCount =
+              Number(fd.get("expected")) || expected || 100;
+            const p = create(puzzleName, pieceCount);
             router.push(`/puzzle/${p.id}/scanner`);
           }}
         >
-          Créer & scanner
-        </PrimaryButton>
+          <label className="block text-xs text-zinc-400">
+            Nom
+            <input
+              name="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
+            />
+          </label>
+          <label className="block text-xs text-zinc-400">
+            Nombre de pièces attendu
+            <input
+              name="expected"
+              type="number"
+              min={20}
+              max={5000}
+              value={expected}
+              onChange={(e) => setExpected(Number(e.target.value) || 0)}
+              className="mt-1 min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-cyan-500/40"
+            />
+          </label>
+          <button
+            type="submit"
+            className="min-h-12 w-full rounded-xl bg-cyan-500 px-4 text-sm font-semibold tracking-wide text-black transition hover:bg-cyan-400"
+          >
+            Créer & scanner
+          </button>
+        </form>
       </section>
 
       <section className="space-y-3">
