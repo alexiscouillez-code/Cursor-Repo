@@ -266,8 +266,45 @@ describe("progress", () => {
       groups: [],
     });
     expect(progress.piecesIdentified).toBe(2);
+    expect(progress.piecesAssembled).toBe(0);
     expect(progress.estimatedPercent).toBeGreaterThan(0);
     expect(progress.estimatedPercent).toBeLessThan(20);
+  });
+
+  it("counts assembled pieces and raises progress", () => {
+    const engine = new PuzzleProgressEngine();
+    const assembled = makePiece("P001", [
+      { side: "TOP", type: "EDGE" },
+      { side: "LEFT", type: "EDGE" },
+      { side: "RIGHT", type: "TAB" },
+      { side: "BOTTOM", type: "BLANK" },
+    ]);
+    assembled.isAssembled = true;
+    const pieces = [
+      assembled,
+      makePiece("P002", [
+        { side: "TOP", type: "INNER" },
+        { side: "LEFT", type: "BLANK" },
+        { side: "RIGHT", type: "TAB" },
+        { side: "BOTTOM", type: "INNER" },
+      ]),
+    ];
+    const progress = engine.compute({
+      expectedPieces: 100,
+      pieces,
+      confirmedMatches: [],
+      groups: [],
+    });
+    expect(progress.piecesAssembled).toBe(1);
+    const without = engine.compute({
+      expectedPieces: 100,
+      pieces: pieces.map((p) => ({ ...p, isAssembled: false })),
+      confirmedMatches: [],
+      groups: [],
+    });
+    expect(progress.estimatedPercent).toBeGreaterThanOrEqual(
+      without.estimatedPercent,
+    );
   });
 });
 
@@ -347,6 +384,7 @@ describe("assistant & reference analyzer", () => {
       progress: {
         piecesTotal: 50,
         piecesIdentified: 1,
+        piecesAssembled: 0,
         connectionsConfirmed: 0,
         groupsCount: 0,
         borderPiecesPlaced: 0,
@@ -379,6 +417,7 @@ describe("assistant & reference analyzer", () => {
       progress: {
         piecesTotal: 10,
         piecesIdentified: 0,
+        piecesAssembled: 0,
         connectionsConfirmed: 0,
         groupsCount: 0,
         borderPiecesPlaced: 0,

@@ -77,6 +77,9 @@ export interface PuzzlePiece {
   textures: TextureFeatures;
   isCorner: boolean;
   isBorder: boolean;
+  /** Physically assembled by the user — shown with a cross on the image. */
+  isAssembled?: boolean;
+  assembledAt?: number;
   regionHint?: {
     name: string;
     confidence: number;
@@ -163,6 +166,7 @@ export interface ReconstructionPlacement {
 export interface PuzzleProgress {
   piecesTotal: number;
   piecesIdentified: number;
+  piecesAssembled: number;
   connectionsConfirmed: number;
   groupsCount: number;
   borderPiecesPlaced: number;
@@ -209,6 +213,8 @@ export interface HistoryEntry {
     | "group_created"
     | "group_merged"
     | "piece_removed"
+    | "piece_assembled"
+    | "piece_unassembled"
     | "reference_added";
   payload: Record<string, unknown>;
   timestamp: number;

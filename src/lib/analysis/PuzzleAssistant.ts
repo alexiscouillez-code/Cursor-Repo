@@ -14,17 +14,31 @@ export class PuzzleAssistant {
       .filter((m) => m.status === "candidate")
       .sort((a, b) => b.score.global - a.score.global);
 
-    const best = candidates[0];
+    const best = candidates.find((m) => {
+      const a = project.pieces.find((p) => p.id === m.pieceAId);
+      const b = project.pieces.find((p) => p.id === m.pieceBId);
+      return !(a?.isAssembled && b?.isAssembled);
+    });
     if (best && best.score.global >= 80) {
       return {
         action: `Assemble ${best.pieceACode} + ${best.pieceBCode}`,
-        rationale: `Compatibilité ${best.score.global}% (confiance ${(best.confidence * 100).toFixed(0)}%). ${best.explanations
+        rationale: `Compatibilité ${best.score.global}% (confiance ${(best.confidence * 100).toFixed(0)}%). Puis marque les pièces avec une croix quand c'est fait. ${best.explanations
           .filter((e) => e.positive)
           .map((e) => e.label)
           .slice(0, 2)
           .join(", ")}.`,
         pieceCodes: [best.pieceACode, best.pieceBCode],
         matchId: best.id,
+        priority: 1,
+      };
+    }
+
+    const unassembled = project.pieces.filter((p) => !p.isAssembled);
+    if (unassembled.length > 0 && project.pieces.some((p) => p.isAssembled)) {
+      return {
+        action: "Continue avec les pièces sans croix",
+        rationale: `${unassembled.length} pièce(s) encore à assembler. Touche une pièce / sa zone sur la photo pour mettre la croix.`,
+        pieceCodes: unassembled.slice(0, 5).map((p) => p.code),
         priority: 1,
       };
     }
@@ -129,7 +143,7 @@ export class PuzzleAssistant {
     if (q.includes("progression") || q.includes("avanc")) {
       const p = project.progress;
       return {
-        message: `Pièces ${p.piecesIdentified}/${p.piecesTotal}, connexions ${p.connectionsConfirmed}, groupes ${p.groupsCount}, progression estimée ${p.estimatedPercent}%.`,
+        message: `Pièces ${p.piecesIdentified}/${p.piecesTotal}, assemblées ${p.piecesAssembled}, connexions ${p.connectionsConfirmed}, groupes ${p.groupsCount}, progression estimée ${p.estimatedPercent}%.`,
         data: { progress: p },
         sources,
       };

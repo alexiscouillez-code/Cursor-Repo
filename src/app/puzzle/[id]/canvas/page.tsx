@@ -35,6 +35,12 @@ export default function CanvasPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#12151a] p-3">
+                Assemblées
+                <div className="text-lg text-emerald-300">
+                  {p.piecesAssembled} / {p.piecesIdentified}
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#12151a] p-3">
                 Connexions
                 <div className="text-lg text-white">{p.connectionsConfirmed}</div>
               </div>
@@ -60,6 +66,9 @@ export default function CanvasPage() {
                     pl.pieceId === pieceId ? { ...pl, x, y } : pl,
                   ),
                 });
+              }}
+              onToggleAssembled={(pieceId) => {
+                void update(store.togglePieceAssembled(project, pieceId));
               }}
             />
 

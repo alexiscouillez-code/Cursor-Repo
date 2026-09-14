@@ -107,6 +107,7 @@ export class PuzzleProgressEngine {
   }): PuzzleProgress {
     const piecesTotal = Math.max(input.expectedPieces, input.pieces.length);
     const piecesIdentified = input.pieces.length;
+    const piecesAssembled = input.pieces.filter((p) => p.isAssembled).length;
     const connectionsConfirmed = input.confirmedMatches.length;
     const groupsCount = input.groups.length;
 
@@ -116,12 +117,12 @@ export class PuzzleProgressEngine {
       connectedIds.add(m.pieceAId);
       connectedIds.add(m.pieceBId);
     }
-    const borderPiecesPlaced = borderPieces.filter((p) => connectedIds.has(p.id)).length;
+    const borderPiecesPlaced = borderPieces.filter((p) =>
+      connectedIds.has(p.id),
+    ).length;
 
     const spatialCoverage =
-      piecesTotal === 0
-        ? 0
-        : Math.min(1, connectedIds.size / piecesTotal);
+      piecesTotal === 0 ? 0 : Math.min(1, connectedIds.size / piecesTotal);
 
     const confidences = input.confirmedMatches.map((m) => m.confidence);
     const averageConfidence =
@@ -129,8 +130,8 @@ export class PuzzleProgressEngine {
         ? 0
         : confidences.reduce((a, b) => a + b, 0) / confidences.length;
 
-    // Multi-factor progress (not just assembled/total)
     const identifiedFactor = piecesTotal ? piecesIdentified / piecesTotal : 0;
+    const assembledFactor = piecesTotal ? piecesAssembled / piecesTotal : 0;
     const connectionFactor = piecesTotal
       ? Math.min(1, connectionsConfirmed / Math.max(1, piecesTotal - 1))
       : 0;
@@ -143,13 +144,13 @@ export class PuzzleProgressEngine {
 
     const estimatedPercent = Math.round(
       100 *
-        (0.25 * identifiedFactor +
-          0.35 * connectionFactor +
+        (0.2 * identifiedFactor +
+          0.2 * assembledFactor +
+          0.3 * connectionFactor +
           0.15 * groupFactor +
-          0.15 * spatialCoverage +
-          0.1 * borderFactor),
+          0.1 * spatialCoverage +
+          0.05 * borderFactor),
     );
-    // Ensure tiny but real progress once pieces are identified
     const floored =
       piecesIdentified > 0
         ? Math.max(1, estimatedPercent)
@@ -158,6 +159,7 @@ export class PuzzleProgressEngine {
     return {
       piecesTotal,
       piecesIdentified,
+      piecesAssembled,
       connectionsConfirmed,
       groupsCount,
       borderPiecesPlaced,

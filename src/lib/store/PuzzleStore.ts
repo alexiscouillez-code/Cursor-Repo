@@ -22,6 +22,7 @@ function emptyProgress(): PuzzleProgress {
   return {
     piecesTotal: 0,
     piecesIdentified: 0,
+    piecesAssembled: 0,
     connectionsConfirmed: 0,
     groupsCount: 0,
     borderPiecesPlaced: 0,
@@ -185,6 +186,38 @@ export class PuzzleStore {
     return { ...project, matches, history };
   }
 
+  /** Mark a piece as physically assembled (or undo) — draws a cross on the image. */
+  togglePieceAssembled(project: PuzzleProject, pieceId: string): PuzzleProject {
+    const target = project.pieces.find((p) => p.id === pieceId);
+    if (!target) return project;
+    const nextAssembled = !target.isAssembled;
+    const pieces = project.pieces.map((p) =>
+      p.id === pieceId
+        ? {
+            ...p,
+            isAssembled: nextAssembled,
+            assembledAt: nextAssembled ? Date.now() : undefined,
+          }
+        : p,
+    );
+    const history = this.pushHistory(project.history, {
+      id: cryptoId(),
+      puzzleId: project.id,
+      type: nextAssembled ? "piece_assembled" : "piece_unassembled",
+      payload: { pieceId, code: target.code },
+      timestamp: Date.now(),
+      undoable: true,
+    });
+    const next: PuzzleProject = { ...project, pieces, history };
+    next.progress = this.progress.compute({
+      expectedPieces: next.expectedPieces,
+      pieces,
+      confirmedMatches: next.matches.filter((m) => m.status === "confirmed"),
+      groups: next.groups,
+    });
+    return next;
+  }
+
   undoLast(project: PuzzleProject): PuzzleProject {
     const last = [...project.history].reverse().find((h) => h.undoable);
     if (!last) return project;
@@ -230,6 +263,32 @@ export class PuzzleStore {
         ),
         history: project.history.filter((h) => h.id !== last.id),
       };
+    }
+
+    if (last.type === "piece_assembled" || last.type === "piece_unassembled") {
+      const pieceId = last.payload.pieceId as string;
+      const pieces = project.pieces.map((p) =>
+        p.id === pieceId
+          ? {
+              ...p,
+              isAssembled: last.type === "piece_unassembled",
+              assembledAt:
+                last.type === "piece_unassembled" ? Date.now() : undefined,
+            }
+          : p,
+      );
+      const next = {
+        ...project,
+        pieces,
+        history: project.history.filter((h) => h.id !== last.id),
+      };
+      next.progress = this.progress.compute({
+        expectedPieces: next.expectedPieces,
+        pieces,
+        confirmedMatches: next.matches.filter((m) => m.status === "confirmed"),
+        groups: next.groups,
+      });
+      return next;
     }
 
     return project;

@@ -7,6 +7,7 @@ import {
 } from "@/lib/vision/PuzzlePieceDetector";
 import type { PuzzlePiece, PuzzleScan } from "@/types/puzzle";
 import { PrimaryButton } from "@/components/ui/Sheet";
+import { ScanPieceOverlay } from "@/features/pieces/ScanPieceOverlay";
 
 const TIPS = [
   "Surface contrastée (fond uni sombre ou clair)",
@@ -94,6 +95,10 @@ export function ScannerPanel({
   puzzleId,
   onDetected,
   initialPreview,
+  pieces = [],
+  scanWidth,
+  scanHeight,
+  onToggleAssembled,
 }: {
   puzzleId: string;
   onDetected: (payload: {
@@ -103,6 +108,10 @@ export function ScannerPanel({
   }) => void;
   /** Last scan image so the viewport is not empty after reload. */
   initialPreview?: string | null;
+  pieces?: PuzzlePiece[];
+  scanWidth?: number;
+  scanHeight?: number;
+  onToggleAssembled?: (pieceId: string) => void;
 }) {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -386,12 +395,22 @@ export function ScannerPanel({
         />
 
         {showPreview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={preview!}
-            alt="Aperçu scan"
-            className="aspect-[4/3] w-full object-contain"
-          />
+          <div className="relative w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview!}
+              alt="Aperçu scan"
+              className="block h-auto w-full"
+            />
+            {onToggleAssembled && scanWidth && scanHeight ? (
+              <ScanPieceOverlay
+                pieces={pieces}
+                imageWidth={scanWidth}
+                imageHeight={scanHeight}
+                onToggleAssembled={onToggleAssembled}
+              />
+            ) : null}
+          </div>
         ) : null}
 
         {!showLive && !showPreview ? (

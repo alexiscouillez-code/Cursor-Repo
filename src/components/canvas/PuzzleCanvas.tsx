@@ -9,12 +9,14 @@ export function PuzzleCanvas({
   matches,
   groups,
   onMove,
+  onToggleAssembled,
 }: {
   pieces: PuzzlePiece[];
   placements: ReconstructionPlacement[];
   matches: PieceMatch[];
   groups: PuzzleGroup[];
   onMove: (pieceId: string, x: number, y: number) => void;
+  onToggleAssembled?: (pieceId: string) => void;
 }) {
   const [scale, setScale] = useState(0.45);
   const [offset, setOffset] = useState({ x: 40, y: 40 });
@@ -152,23 +154,49 @@ export function PuzzleCanvas({
                   drag.current.originY = placement.y;
                   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
                 }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onToggleAssembled?.(piece.id);
+                }}
               >
                 {piece.thumbnailDataUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={piece.thumbnailDataUrl}
                     alt={piece.code}
-                    className="h-full w-full rounded-sm border border-cyan-500/30 object-cover"
+                    className={`h-full w-full rounded-sm border object-cover ${
+                      piece.isAssembled
+                        ? "border-rose-400/50 opacity-45 grayscale"
+                        : "border-cyan-500/30"
+                    }`}
                     draggable={false}
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center rounded-sm border border-cyan-500/30 bg-white/5 text-[10px] text-cyan-200">
+                  <div
+                    className={`flex h-full w-full items-center justify-center rounded-sm border text-[10px] ${
+                      piece.isAssembled
+                        ? "border-rose-400/50 bg-rose-500/10 text-rose-200"
+                        : "border-cyan-500/30 bg-white/5 text-cyan-200"
+                    }`}
+                  >
                     {piece.code}
                   </div>
+                )}
+                {piece.isAssembled && (
+                  <span
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                    aria-hidden
+                  >
+                    <span className="relative block h-[55%] w-[55%]">
+                      <span className="absolute left-1/2 top-0 h-full w-[4px] -translate-x-1/2 rotate-45 rounded-full bg-rose-400" />
+                      <span className="absolute left-1/2 top-0 h-full w-[4px] -translate-x-1/2 -rotate-45 rounded-full bg-rose-400" />
+                    </span>
+                  </span>
                 )}
                 {showNumbers && (
                   <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[10px] text-cyan-200">
                     {piece.code}
+                    {piece.isAssembled ? " ✓" : ""}
                   </span>
                 )}
               </div>

@@ -20,61 +20,78 @@ export default function ScannerPage() {
 
   return (
     <ProjectGate>
-      {(project) => (
-        <>
-          <header className="mb-5 flex items-end justify-between gap-3">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-400/80">
-                Scanner
-              </p>
-              <h1 className="text-2xl text-white">{project.name}</h1>
-            </div>
-            <Link
-              href={`/puzzle/${project.id}/reference`}
-              className="text-xs text-zinc-400 underline-offset-2 hover:text-cyan-300"
-            >
-              Référence
-            </Link>
-          </header>
+      {(project) => {
+        const latestScan = project.scans[0];
+        const scanPieces = latestScan
+          ? project.pieces.filter((p) => p.scanId === latestScan.id)
+          : project.pieces;
 
-          <ScannerPanel
-            puzzleId={project.id}
-            initialPreview={project.scans[0]?.imageDataUrl ?? null}
-            onDetected={({ scan, pieces, warnings }) => {
-              const next = applyScanToProject(project, scan, pieces, store);
-              void update(next);
-              if (warnings.length) {
-                console.info(warnings);
-              }
-            }}
-          />
+        return (
+          <>
+            <header className="mb-5 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-400/80">
+                  Scanner
+                </p>
+                <h1 className="text-2xl text-white">{project.name}</h1>
+              </div>
+              <Link
+                href={`/puzzle/${project.id}/reference`}
+                className="text-xs text-zinc-400 underline-offset-2 hover:text-cyan-300"
+              >
+                Référence
+              </Link>
+            </header>
 
-          {project.pieces.length > 0 && (
-            <div className="mt-4 space-y-3">
-              <p className="text-sm text-zinc-400">
-                Total pièces : {project.pieces.length} · Progression{" "}
-                {project.progress.estimatedPercent}%
-              </p>
-              <PieceCorrectionBar
-                pieces={project.pieces}
-                onChange={(pieces) => {
-                  void update(store.recomputeMatches({ ...project, pieces }));
-                }}
-              />
-            </div>
-          )}
+            <ScannerPanel
+              puzzleId={project.id}
+              initialPreview={latestScan?.imageDataUrl ?? null}
+              pieces={scanPieces}
+              scanWidth={latestScan?.width}
+              scanHeight={latestScan?.height}
+              onToggleAssembled={(pieceId) => {
+                void update(store.togglePieceAssembled(project, pieceId));
+              }}
+              onDetected={({ scan, pieces, warnings }) => {
+                const next = applyScanToProject(project, scan, pieces, store);
+                void update(next);
+                if (warnings.length) {
+                  console.info(warnings);
+                }
+              }}
+            />
 
-          <NextActionButton
-            project={project}
-            onOpenAssistant={() => setAssistantOpen(true)}
-          />
-          <AssistantPanel
-            project={project}
-            open={assistantOpen}
-            onClose={() => setAssistantOpen(false)}
-          />
-        </>
-      )}
+            {project.pieces.length > 0 && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm text-zinc-400">
+                  Total pièces : {project.pieces.length} · Assemblées{" "}
+                  {project.progress.piecesAssembled} · Progression{" "}
+                  {project.progress.estimatedPercent}%
+                </p>
+                <PieceCorrectionBar
+                  pieces={project.pieces}
+                  onChange={(pieces) => {
+                    void update(store.recomputeMatches({ ...project, pieces }));
+                  }}
+                  onToggleAssembled={(pieceId) => {
+                    void update(store.togglePieceAssembled(project, pieceId));
+                  }}
+                />
+              </div>
+            )}
+
+            <NextActionButton
+              project={project}
+              onOpenAssistant={() => setAssistantOpen(true)}
+            />
+            <AssistantPanel
+              project={project}
+              open={assistantOpen}
+              onClose={() => setAssistantOpen(false)}
+            />
+          </>
+        );
+      }}
     </ProjectGate>
   );
 }
