@@ -12,11 +12,18 @@ import {
 } from "@/lib/reconstruction/PuzzleReconstructionEngine";
 import { PuzzleReferenceAnalyzer } from "@/lib/analysis/PuzzleReferenceAnalyzer";
 import {
+  createSession,
   deleteProject,
+  deleteSession,
+  getActiveSession,
   getProject,
   listProjects,
+  listSessions,
+  renameSession,
   saveProject,
+  setActiveSessionId,
 } from "@/lib/store/persistence";
+import type { UserSession } from "@/types/puzzle";
 
 function emptyProgress(): PuzzleProgress {
   return {
@@ -32,11 +39,16 @@ function emptyProgress(): PuzzleProgress {
   };
 }
 
-export function createPuzzle(name: string, expectedPieces: number): PuzzleProject {
+export function createPuzzle(
+  name: string,
+  expectedPieces: number,
+  sessionId?: string,
+): PuzzleProject {
   const now = Date.now();
   return {
     id: cryptoId(),
     name,
+    sessionId,
     expectedPieces,
     createdAt: now,
     updatedAt: now,
@@ -57,8 +69,8 @@ export class PuzzleStore {
   private progress = new PuzzleProgressEngine();
   private reference = new PuzzleReferenceAnalyzer();
 
-  async list(): Promise<PuzzleProject[]> {
-    return listProjects();
+  async list(sessionId?: string): Promise<PuzzleProject[]> {
+    return listProjects(sessionId);
   }
 
   async get(id: string): Promise<PuzzleProject | null> {
@@ -71,6 +83,30 @@ export class PuzzleStore {
 
   async delete(id: string): Promise<void> {
     await deleteProject(id);
+  }
+
+  async listSessions(): Promise<UserSession[]> {
+    return listSessions();
+  }
+
+  async getActiveSession(): Promise<UserSession> {
+    return getActiveSession();
+  }
+
+  async setActiveSession(sessionId: string): Promise<void> {
+    await setActiveSessionId(sessionId);
+  }
+
+  async createSession(name: string): Promise<UserSession> {
+    return createSession(name);
+  }
+
+  async renameSession(sessionId: string, name: string): Promise<UserSession> {
+    return renameSession(sessionId, name);
+  }
+
+  async deleteSession(sessionId: string): Promise<UserSession> {
+    return deleteSession(sessionId);
   }
 
   recomputeMatches(project: PuzzleProject): PuzzleProject {

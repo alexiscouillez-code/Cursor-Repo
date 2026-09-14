@@ -47,6 +47,7 @@ export default function ScannerPage() {
               puzzleId={project.id}
               initialPreview={latestScan?.imageDataUrl ?? null}
               pieces={scanPieces}
+              matches={project.matches}
               scanWidth={latestScan?.width}
               scanHeight={latestScan?.height}
               onToggleAssembled={(pieceId) => {
@@ -67,6 +68,10 @@ export default function ScannerPage() {
                   Total pièces : {project.pieces.length} · Assemblées{" "}
                   {project.progress.piecesAssembled} · Progression{" "}
                   {project.progress.estimatedPercent}%
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Lignes sur la photo : vert = confirmé · cyan = fort · ambre =
+                  moyen · violet = candidat
                 </p>
                 <PieceCorrectionBar
                   pieces={project.pieces}

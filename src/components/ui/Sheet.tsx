@@ -45,11 +45,13 @@ export function PrimaryButton({
   onClick,
   disabled,
   variant = "primary",
+  type = "button",
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   variant?: "primary" | "ghost" | "danger" | "success";
+  type?: "button" | "submit" | "reset";
 }) {
   const styles = {
     primary: "bg-cyan-500 text-black hover:bg-cyan-400",
@@ -60,7 +62,7 @@ export function PrimaryButton({
 
   return (
     <button
-      type="button"
+      type={type}
       disabled={disabled}
       onClick={onClick}
       className={`min-h-12 flex-1 rounded-xl px-4 text-sm font-semibold tracking-wide transition disabled:opacity-40 ${styles}`}

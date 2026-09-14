@@ -10,7 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import { createPuzzle, PuzzleStore } from "@/lib/store/PuzzleStore";
-import type { PuzzlePiece, PuzzleProject, PuzzleScan } from "@/types/puzzle";
+import type {
+  PuzzlePiece,
+  PuzzleProject,
+  PuzzleScan,
+  UserSession,
+} from "@/types/puzzle";
 
 const Ctx = createContext<{
   store: PuzzleStore;
@@ -129,13 +134,22 @@ export function usePuzzle() {
 export function useHomePuzzles() {
   const store = useMemo(() => new PuzzleStore(), []);
   const [projects, setProjects] = useState<PuzzleProject[]>([]);
+  const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [activeSession, setActiveSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      setProjects(await store.list());
+      const [sessionList, active, list] = await Promise.all([
+        store.listSessions(),
+        store.getActiveSession(),
+        store.list(),
+      ]);
+      setSessions(sessionList);
+      setActiveSession(active);
+      setProjects(list);
       setStorageError(null);
     } catch (error) {
       setStorageError(
@@ -150,8 +164,14 @@ export function useHomePuzzles() {
     let cancelled = false;
     void (async () => {
       try {
-        const list = await store.list();
+        const [sessionList, active, list] = await Promise.all([
+          store.listSessions(),
+          store.getActiveSession(),
+          store.list(),
+        ]);
         if (cancelled) return;
+        setSessions(sessionList);
+        setActiveSession(active);
         setProjects(list);
         setStorageError(null);
       } catch (error) {
@@ -169,7 +189,8 @@ export function useHomePuzzles() {
   }, [store]);
 
   const create = async (name: string, expectedPieces: number) => {
-    const p = createPuzzle(name, expectedPieces);
+    const session = activeSession ?? (await store.getActiveSession());
+    const p = createPuzzle(name, expectedPieces, session.id);
     try {
       await store.save(p);
       await reload();
@@ -190,7 +211,41 @@ export function useHomePuzzles() {
     await reload();
   };
 
-  return { projects, create, remove, reload, store, loading, storageError };
+  const selectSession = async (sessionId: string) => {
+    await store.setActiveSession(sessionId);
+    await reload();
+  };
+
+  const addSession = async (name: string) => {
+    await store.createSession(name);
+    await reload();
+  };
+
+  const renameActiveSession = async (sessionId: string, name: string) => {
+    await store.renameSession(sessionId, name);
+    await reload();
+  };
+
+  const removeSession = async (sessionId: string) => {
+    await store.deleteSession(sessionId);
+    await reload();
+  };
+
+  return {
+    projects,
+    sessions,
+    activeSession,
+    create,
+    remove,
+    selectSession,
+    addSession,
+    renameActiveSession,
+    removeSession,
+    reload,
+    store,
+    loading,
+    storageError,
+  };
 }
 
 export function applyScanToProject(

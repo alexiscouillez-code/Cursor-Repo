@@ -4,10 +4,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useHomePuzzles } from "@/features/puzzle/PuzzleProvider";
+import { SessionBar } from "@/features/session/SessionBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
 export default function HomePage() {
-  const { projects, create, remove, storageError, loading } = useHomePuzzles();
+  const {
+    projects,
+    sessions,
+    activeSession,
+    create,
+    remove,
+    selectSession,
+    addSession,
+    renameActiveSession,
+    removeSession,
+    storageError,
+    loading,
+  } = useHomePuzzles();
   const router = useRouter();
   const [name, setName] = useState("Mon puzzle");
   const [expected, setExpected] = useState(500);
@@ -27,6 +40,11 @@ export default function HomePage() {
           Moteur géométrie → matching → groupes. Analyse locale, sans IA
           externe.
         </p>
+        {activeSession && (
+          <p className="mt-2 text-xs text-cyan-300/80">
+            Session active : {activeSession.name}
+          </p>
+        )}
       </header>
 
       {(storageError || formError) && (
@@ -34,6 +52,15 @@ export default function HomePage() {
           {formError ?? storageError}
         </p>
       )}
+
+      <SessionBar
+        sessions={sessions}
+        active={activeSession}
+        onSelect={(id) => void selectSession(id)}
+        onCreate={addSession}
+        onRename={renameActiveSession}
+        onDelete={removeSession}
+      />
 
       <section className="mb-8 space-y-3 rounded-2xl border border-white/10 bg-[#12151a] p-4">
         <h2 className="text-sm font-medium text-white">Nouveau puzzle</h2>
@@ -84,7 +111,7 @@ export default function HomePage() {
           </label>
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !activeSession}
             className="min-h-12 w-full rounded-xl bg-cyan-500 px-4 text-sm font-semibold tracking-wide text-black transition hover:bg-cyan-400 disabled:opacity-50"
           >
             {busy ? "Création…" : "Créer & scanner"}
@@ -94,13 +121,13 @@ export default function HomePage() {
 
       <section className="space-y-3">
         <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-          Projets
+          Projets {activeSession ? `· ${activeSession.name}` : ""}
         </h2>
-        {loading && (
-          <p className="text-sm text-zinc-500">Chargement…</p>
-        )}
+        {loading && <p className="text-sm text-zinc-500">Chargement…</p>}
         {!loading && projects.length === 0 && (
-          <p className="text-sm text-zinc-500">Aucun puzzle pour le moment.</p>
+          <p className="text-sm text-zinc-500">
+            Aucun puzzle dans cette session.
+          </p>
         )}
         {projects.map((p) => (
           <article
@@ -112,6 +139,7 @@ export default function HomePage() {
                 <h3 className="text-base text-white">{p.name}</h3>
                 <p className="mt-1 text-xs text-zinc-500">
                   {p.pieces.length}/{p.expectedPieces} pièces ·{" "}
+                  {p.progress.piecesAssembled ?? 0} assemblées ·{" "}
                   {p.progress.estimatedPercent}% · {p.groups.length} groupes
                 </p>
               </div>

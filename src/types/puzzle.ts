@@ -224,6 +224,8 @@ export interface HistoryEntry {
 export interface PuzzleProject {
   id: string;
   name: string;
+  /** Personal session that owns this puzzle (local profile). */
+  sessionId?: string;
   expectedPieces: number;
   createdAt: number;
   updatedAt: number;
@@ -236,6 +238,15 @@ export interface PuzzleProject {
   referenceAnalysis?: ReferenceAnalysis;
   history: HistoryEntry[];
   progress: PuzzleProgress;
+}
+
+/** Local personal workspace — puzzles are scoped per session on this device. */
+export interface UserSession {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  color: string;
 }
 
 export interface NextActionRecommendation {

@@ -5,7 +5,7 @@ import {
   PuzzleImageProcessor,
   PuzzlePieceDetector,
 } from "@/lib/vision/PuzzlePieceDetector";
-import type { PuzzlePiece, PuzzleScan } from "@/types/puzzle";
+import type { PieceMatch, PuzzlePiece, PuzzleScan } from "@/types/puzzle";
 import { PrimaryButton } from "@/components/ui/Sheet";
 import { ScanPieceOverlay } from "@/features/pieces/ScanPieceOverlay";
 
@@ -96,6 +96,7 @@ export function ScannerPanel({
   onDetected,
   initialPreview,
   pieces = [],
+  matches = [],
   scanWidth,
   scanHeight,
   onToggleAssembled,
@@ -109,6 +110,7 @@ export function ScannerPanel({
   /** Last scan image so the viewport is not empty after reload. */
   initialPreview?: string | null;
   pieces?: PuzzlePiece[];
+  matches?: PieceMatch[];
   scanWidth?: number;
   scanHeight?: number;
   onToggleAssembled?: (pieceId: string) => void;
@@ -405,6 +407,7 @@ export function ScannerPanel({
             {onToggleAssembled && scanWidth && scanHeight ? (
               <ScanPieceOverlay
                 pieces={pieces}
+                matches={matches}
                 imageWidth={scanWidth}
                 imageHeight={scanHeight}
                 onToggleAssembled={onToggleAssembled}
