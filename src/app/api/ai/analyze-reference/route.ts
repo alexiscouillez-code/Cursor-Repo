@@ -4,6 +4,7 @@ import {
   parseReferenceAnalysis,
   PuzzleReferenceAnalyzer,
 } from "@/lib/ai/PuzzleAIAssistant";
+import { generateGeminiJson, isGeminiConfigured } from "@/lib/ai/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,83 +15,50 @@ const BodySchema = z.object({
 });
 
 /**
- * Secure AI reference analysis.
- * Never exposes API keys to the client.
- * Falls back to heuristic structured JSON if AI is unavailable.
+ * Analyse de référence via Gemini (serveur uniquement).
+ * Fallback heuristique si Gemini indisponible.
  */
 export async function POST(request: Request) {
   try {
     const json: unknown = await request.json();
     const body = BodySchema.parse(json);
     const analyzer = new PuzzleReferenceAnalyzer();
+    const colors = body.dominantColors ?? ["#6BA3C7", "#3D6B3D", "#8B7355"];
 
-    const apiKey = process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY;
-    if (!apiKey) {
-      const heuristic = analyzer.analyzeHeuristicFromColors(
-        body.dominantColors ?? ["#6BA3C7", "#3D6B3D", "#8B7355"],
-      );
-      return NextResponse.json(heuristic);
+    if (!isGeminiConfigured()) {
+      return NextResponse.json(analyzer.analyzeHeuristicFromColors(colors));
     }
 
-    // Optional vision model call — structured JSON only
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: process.env.AI_VISION_MODEL ?? "gpt-4o-mini",
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content:
-                "Tu analyses une image de puzzle terminé. Réponds UNIQUEMENT en JSON: {regions:[{name,position,confidence,colorHints?}],summary,confidence,source:'ai'}. position ∈ top|bottom|left|right|center|top-left|top-right|bottom-left|bottom-right. confidence 0..1.",
-            },
-            {
-              role: "user",
-              content: body.imageDataUrl
-                ? [
-                    {
-                      type: "text",
-                      text: "Identifie les grandes zones du puzzle.",
-                    },
-                    {
-                      type: "image_url",
-                      image_url: { url: body.imageDataUrl.slice(0, 2_000_000) },
-                    },
-                  ]
-                : `Couleurs dominantes: ${(body.dominantColors ?? []).join(", ")}`,
-            },
-          ],
-        }),
+      const prompt = [
+        "Tu analyses une image de puzzle terminé (boîte ou photo finale).",
+        "Réponds UNIQUEMENT en JSON valide avec exactement cette forme:",
+        '{"regions":[{"name":"sky","position":"top","confidence":0.94,"colorHints":["#87CEEB"]}],"summary":"...","confidence":0.9,"source":"ai"}',
+        "position ∈ top|bottom|left|right|center|top-left|top-right|bottom-left|bottom-right.",
+        "confidence entre 0 et 1. Identifie les grandes zones (ciel, eau, forêt, bâtiment, sol, etc.).",
+        body.imageDataUrl
+          ? "Une image est fournie en pièce jointe."
+          : `Couleurs dominantes observées: ${colors.join(", ")}`,
+      ].join("\n");
+
+      const result = await generateGeminiJson({
+        prompt,
+        imageDataUrl: body.imageDataUrl?.slice(0, 2_000_000),
       });
 
-      if (!response.ok) {
-        throw new Error(`AI HTTP ${response.status}`);
+      if (!result) {
+        return NextResponse.json(analyzer.analyzeHeuristicFromColors(colors));
       }
 
-      const data = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = data.choices?.[0]?.message?.content;
-      const parsed = parseReferenceAnalysis(
-        content ? JSON.parse(content) : { source: "unavailable" },
-      );
+      const payload: unknown = JSON.parse(result.text);
+      const parsed = parseReferenceAnalysis(payload);
       if (parsed.source === "unavailable" || parsed.regions.length === 0) {
-        return NextResponse.json(
-          analyzer.analyzeHeuristicFromColors(body.dominantColors ?? []),
-        );
+        return NextResponse.json(analyzer.analyzeHeuristicFromColors(colors));
       }
       return NextResponse.json({ ...parsed, source: "ai" as const });
-    } catch {
-      return NextResponse.json(
-        analyzer.analyzeHeuristicFromColors(
-          body.dominantColors ?? ["#6BA3C7", "#3D6B3D", "#8B7355"],
-        ),
-      );
+    } catch (error) {
+      console.error("Gemini analyze-reference failed:", error);
+      return NextResponse.json(analyzer.analyzeHeuristicFromColors(colors));
     }
   } catch (error) {
     return NextResponse.json(

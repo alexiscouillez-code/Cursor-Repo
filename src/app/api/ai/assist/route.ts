@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { PuzzleAIAssistant } from "@/lib/ai/PuzzleAIAssistant";
+import { generateGeminiJson, isGeminiConfigured } from "@/lib/ai/gemini";
 import type { PuzzleProject } from "@/types/puzzle";
 
 export const runtime = "nodejs";
@@ -26,8 +27,8 @@ const BodySchema = z.object({
 });
 
 /**
- * Assistant uses real engine data only — never invents pieces/scores.
- * Generative AI is optional enrichment; local engine answers by default.
+ * Assistant = moteur géométrique d'abord.
+ * Gemini peut reformuler, jamais inventer pièces/scores.
  */
 export async function POST(request: Request) {
   try {
@@ -35,8 +36,63 @@ export async function POST(request: Request) {
     const body = BodySchema.parse(json);
     const assistant = new PuzzleAIAssistant();
     const project = body.project as unknown as PuzzleProject;
-    const reply = assistant.answer(project, body.question);
-    return NextResponse.json(reply);
+    const engineReply = assistant.answer(project, body.question);
+
+    if (!isGeminiConfigured()) {
+      return NextResponse.json(engineReply);
+    }
+
+    try {
+      const facts = {
+        question: body.question,
+        engineMessage: engineReply.message,
+        sources: engineReply.sources,
+        data: engineReply.data ?? null,
+        progress: project.progress,
+        pieceCount: project.pieces.length,
+        candidateCount: project.matches.filter((m) => m.status === "candidate")
+          .length,
+        confirmedCount: project.matches.filter((m) => m.status === "confirmed")
+          .length,
+      };
+
+      const result = await generateGeminiJson({
+        prompt: [
+          "Tu es l'assistant Puzzle Solver 2D.",
+          "Tu DOIS t'appuyer uniquement sur les faits moteur fournis.",
+          "Interdit d'inventer des pièces, scores, groupes ou associations absents des faits.",
+          "Réponds en JSON: {\"message\":\"...\",\"sources\":[\"matching-engine\",\"gemini\"]}",
+          "Faits moteur:",
+          JSON.stringify(facts),
+        ].join("\n"),
+      });
+
+      if (!result) return NextResponse.json(engineReply);
+
+      const parsed = JSON.parse(result.text) as {
+        message?: string;
+        sources?: string[];
+      };
+
+      if (!parsed.message || typeof parsed.message !== "string") {
+        return NextResponse.json(engineReply);
+      }
+
+      return NextResponse.json({
+        message: parsed.message,
+        data: engineReply.data,
+        sources: Array.from(
+          new Set([
+            ...(engineReply.sources ?? []),
+            ...(parsed.sources ?? []),
+            "gemini",
+          ]),
+        ),
+      });
+    } catch (error) {
+      console.error("Gemini assist failed:", error);
+      return NextResponse.json(engineReply);
+    }
   } catch (error) {
     return NextResponse.json(
       {
