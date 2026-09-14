@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -14,8 +15,10 @@ import type { PuzzlePiece, PuzzleProject, PuzzleScan } from "@/types/puzzle";
 const Ctx = createContext<{
   store: PuzzleStore;
   project: PuzzleProject | null;
-  refresh: () => void;
-  update: (project: PuzzleProject) => void;
+  loading: boolean;
+  storageError: string | null;
+  refresh: () => Promise<void>;
+  update: (project: PuzzleProject) => Promise<void>;
 } | null>(null);
 
 export function PuzzleProvider({
@@ -26,31 +29,92 @@ export function PuzzleProvider({
   children: ReactNode;
 }) {
   const store = useMemo(() => new PuzzleStore(), []);
-  const [project, setProject] = useState<PuzzleProject | null>(() =>
-    store.get(puzzleId),
-  );
+  const [project, setProject] = useState<PuzzleProject | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
-  const refresh = useCallback(() => {
-    setProject(store.get(puzzleId));
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setProject(await store.get(puzzleId));
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(
+        error instanceof Error ? error.message : "Erreur de stockage",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [store, puzzleId]);
 
   const update = useCallback(
-    (next: PuzzleProject) => {
-      store.save(next);
-      setProject(next);
+    async (next: PuzzleProject) => {
+      try {
+        await store.save(next);
+        setProject(next);
+        setStorageError(null);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Quota de stockage dépassé";
+        setStorageError(message);
+        // Keep in-memory state so the session remains usable
+        setProject(next);
+        // Soft warning: data was saved in a reduced form — don't fail callers
+        if (
+          error instanceof Error &&
+          error.name === "StorageSoftQuotaWarning"
+        ) {
+          return;
+        }
+        throw error;
+      }
     },
     [store],
   );
 
-  // Re-sync when puzzleId changes without an effect cascade on mount
-  const [activeId, setActiveId] = useState(puzzleId);
-  if (activeId !== puzzleId) {
-    setActiveId(puzzleId);
-    setProject(store.get(puzzleId));
+  useEffect(() => {
+    let cancelled = false;
+    // Async load from IndexedDB — intentional mount/id sync
+    void (async () => {
+      try {
+        const next = await store.get(puzzleId);
+        if (cancelled) return;
+        setProject(next);
+        setStorageError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setStorageError(
+          error instanceof Error ? error.message : "Erreur de stockage",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [store, puzzleId]);
+
+  // Reset loading flag when navigating between puzzles
+  const [seenId, setSeenId] = useState(puzzleId);
+  if (seenId !== puzzleId) {
+    setSeenId(puzzleId);
+    setLoading(true);
   }
 
   return (
-    <Ctx.Provider value={{ store, project, refresh, update }}>
+    <Ctx.Provider
+      value={{ store, project, loading, storageError, refresh, update }}
+    >
+      {storageError && (
+        <div className="mx-auto max-w-lg px-4 pt-3">
+          <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            {storageError}
+          </p>
+        </div>
+      )}
       {children}
     </Ctx.Provider>
   );
@@ -64,25 +128,69 @@ export function usePuzzle() {
 
 export function useHomePuzzles() {
   const store = useMemo(() => new PuzzleStore(), []);
-  const [projects, setProjects] = useState<PuzzleProject[]>(() => store.list());
+  const [projects, setProjects] = useState<PuzzleProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
-  const reload = useCallback(() => {
-    setProjects(store.list());
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      setProjects(await store.list());
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(
+        error instanceof Error ? error.message : "Erreur de stockage",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [store]);
 
-  const create = (name: string, expectedPieces: number) => {
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await store.list();
+        if (cancelled) return;
+        setProjects(list);
+        setStorageError(null);
+      } catch (error) {
+        if (cancelled) return;
+        setStorageError(
+          error instanceof Error ? error.message : "Erreur de stockage",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [store]);
+
+  const create = async (name: string, expectedPieces: number) => {
     const p = createPuzzle(name, expectedPieces);
-    store.save(p);
-    reload();
+    try {
+      await store.save(p);
+      await reload();
+      setStorageError(null);
+    } catch (error) {
+      setStorageError(
+        error instanceof Error
+          ? error.message
+          : "Quota de stockage dépassé",
+      );
+      throw error;
+    }
     return p;
   };
 
-  const remove = (id: string) => {
-    store.delete(id);
-    reload();
+  const remove = async (id: string) => {
+    await store.delete(id);
+    await reload();
   };
 
-  return { projects, create, remove, reload, store };
+  return { projects, create, remove, reload, store, loading, storageError };
 }
 
 export function applyScanToProject(
@@ -98,7 +206,7 @@ export function applyScanToProject(
   }));
   let next: PuzzleProject = {
     ...project,
-    scans: [scan, ...project.scans],
+    scans: [scan, ...project.scans].slice(0, 12),
     pieces: renumbered,
     history: [
       {

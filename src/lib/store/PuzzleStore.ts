@@ -11,8 +11,12 @@ import {
   PuzzleReconstructionEngine,
 } from "@/lib/reconstruction/PuzzleReconstructionEngine";
 import { PuzzleReferenceAnalyzer } from "@/lib/analysis/PuzzleReferenceAnalyzer";
-
-const STORAGE_KEY = "puzzle-solver-v5-projects";
+import {
+  deleteProject,
+  getProject,
+  listProjects,
+  saveProject,
+} from "@/lib/store/persistence";
 
 function emptyProgress(): PuzzleProgress {
   return {
@@ -52,46 +56,27 @@ export class PuzzleStore {
   private progress = new PuzzleProgressEngine();
   private reference = new PuzzleReferenceAnalyzer();
 
-  list(): PuzzleProject[] {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      return JSON.parse(raw) as PuzzleProject[];
-    } catch {
-      return [];
-    }
+  async list(): Promise<PuzzleProject[]> {
+    return listProjects();
   }
 
-  get(id: string): PuzzleProject | null {
-    return this.list().find((p) => p.id === id) ?? null;
+  async get(id: string): Promise<PuzzleProject | null> {
+    return getProject(id);
   }
 
-  save(project: PuzzleProject): void {
-    if (typeof window === "undefined") return;
-    const all = this.list().filter((p) => p.id !== project.id);
-    all.unshift({ ...project, updatedAt: Date.now() });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  async save(project: PuzzleProject): Promise<void> {
+    await saveProject({ ...project, updatedAt: Date.now() });
   }
 
-  delete(id: string): void {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(this.list().filter((p) => p.id !== id)),
-    );
+  async delete(id: string): Promise<void> {
+    await deleteProject(id);
   }
 
   recomputeMatches(project: PuzzleProject): PuzzleProject {
     const rejected = new Set(
-      project.matches
-        .filter((m) => m.status === "rejected")
-        .map((m) => m.id),
+      project.matches.filter((m) => m.status === "rejected").map((m) => m.id),
     );
     const confirmed = project.matches.filter((m) => m.status === "confirmed");
-    const candidates = this.matching.findCandidates(project.pieces, {
-      rejectedKeys: rejected,
-    });
 
     const withRegions = {
       ...project,
@@ -109,7 +94,10 @@ export class PuzzleStore {
 
     const next: PuzzleProject = {
       ...withRegions,
-      matches: [...confirmed, ...refreshedCandidates.filter((c) => !confirmed.some((x) => x.id === c.id))],
+      matches: [
+        ...confirmed,
+        ...refreshedCandidates.filter((c) => !confirmed.some((x) => x.id === c.id)),
+      ],
       placements:
         project.placements.length > 0
           ? project.placements
@@ -123,8 +111,6 @@ export class PuzzleStore {
       groups: next.groups,
     });
 
-    // silence unused
-    void candidates;
     return next;
   }
 
@@ -253,7 +239,7 @@ export class PuzzleStore {
     history: HistoryEntry[],
     entry: HistoryEntry,
   ): HistoryEntry[] {
-    return [entry, ...history].slice(0, 200);
+    return [entry, ...history].slice(0, 80);
   }
 }
 

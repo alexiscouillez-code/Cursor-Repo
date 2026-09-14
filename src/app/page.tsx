@@ -7,10 +7,12 @@ import { useHomePuzzles } from "@/features/puzzle/PuzzleProvider";
 import { BottomNav } from "@/components/layout/BottomNav";
 
 export default function HomePage() {
-  const { projects, create, remove } = useHomePuzzles();
+  const { projects, create, remove, storageError, loading } = useHomePuzzles();
   const router = useRouter();
   const [name, setName] = useState("Mon puzzle");
   const [expected, setExpected] = useState(500);
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-28 pt-8">
@@ -27,6 +29,12 @@ export default function HomePage() {
         </p>
       </header>
 
+      {(storageError || formError) && (
+        <p className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          {formError ?? storageError}
+        </p>
+      )}
+
       <section className="mb-8 space-y-3 rounded-2xl border border-white/10 bg-[#12151a] p-4">
         <h2 className="text-sm font-medium text-white">Nouveau puzzle</h2>
         <form
@@ -36,10 +44,21 @@ export default function HomePage() {
             const fd = new FormData(e.currentTarget);
             const puzzleName =
               String(fd.get("name") ?? name).trim() || "Puzzle";
-            const pieceCount =
-              Number(fd.get("expected")) || expected || 100;
-            const p = create(puzzleName, pieceCount);
-            router.push(`/puzzle/${p.id}/scanner`);
+            const pieceCount = Number(fd.get("expected")) || expected || 100;
+            setBusy(true);
+            setFormError(null);
+            void create(puzzleName, pieceCount)
+              .then((p) => {
+                router.push(`/puzzle/${p.id}/scanner`);
+              })
+              .catch((error: unknown) => {
+                setFormError(
+                  error instanceof Error
+                    ? error.message
+                    : "Impossible de créer le puzzle (stockage plein ?)",
+                );
+              })
+              .finally(() => setBusy(false));
           }}
         >
           <label className="block text-xs text-zinc-400">
@@ -65,9 +84,10 @@ export default function HomePage() {
           </label>
           <button
             type="submit"
-            className="min-h-12 w-full rounded-xl bg-cyan-500 px-4 text-sm font-semibold tracking-wide text-black transition hover:bg-cyan-400"
+            disabled={busy}
+            className="min-h-12 w-full rounded-xl bg-cyan-500 px-4 text-sm font-semibold tracking-wide text-black transition hover:bg-cyan-400 disabled:opacity-50"
           >
-            Créer & scanner
+            {busy ? "Création…" : "Créer & scanner"}
           </button>
         </form>
       </section>
@@ -76,7 +96,10 @@ export default function HomePage() {
         <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
           Projets
         </h2>
-        {projects.length === 0 && (
+        {loading && (
+          <p className="text-sm text-zinc-500">Chargement…</p>
+        )}
+        {!loading && projects.length === 0 && (
           <p className="text-sm text-zinc-500">Aucun puzzle pour le moment.</p>
         )}
         {projects.map((p) => (
@@ -95,7 +118,7 @@ export default function HomePage() {
               <button
                 type="button"
                 className="text-xs text-zinc-500"
-                onClick={() => remove(p.id)}
+                onClick={() => void remove(p.id)}
               >
                 Suppr.
               </button>
