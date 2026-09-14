@@ -11,9 +11,44 @@ import { PrimaryButton } from "@/components/ui/Sheet";
 const TIPS = [
   "Surface contrastée (fond uni sombre ou clair)",
   "Bonne luminosité, sans contre-jour",
+  "Utilise le flash si la pièce est mal éclairée",
   "Éviter les ombres portées",
   "Ne pas superposer les pièces",
 ];
+
+type TorchCapableTrack = MediaStreamTrack & {
+  getCapabilities?: () => MediaTrackCapabilities & { torch?: boolean };
+  getSettings?: () => MediaTrackSettings & { torch?: boolean };
+};
+
+async function setTorch(track: MediaStreamTrack | null, enabled: boolean): Promise<boolean> {
+  if (!track) return false;
+  const capable = track as TorchCapableTrack;
+  const caps = capable.getCapabilities?.();
+  if (!caps || !("torch" in caps) || !caps.torch) return false;
+  try {
+    await track.applyConstraints({
+      advanced: [{ torch: enabled } as unknown as MediaTrackConstraintSet],
+    });
+    return true;
+  } catch {
+    try {
+      await track.applyConstraints({
+        torch: enabled,
+      } as unknown as MediaTrackConstraints);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function trackSupportsTorch(track: MediaStreamTrack | null): boolean {
+  if (!track) return false;
+  const capable = track as TorchCapableTrack;
+  const caps = capable.getCapabilities?.();
+  return Boolean(caps && "torch" in caps && caps.torch);
+}
 
 export function ScannerPanel({
   puzzleId,
@@ -28,45 +63,100 @@ export function ScannerPanel({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [rotation, setRotation] = useState(0);
   const [status, setStatus] = useState<"idle" | "camera" | "analyzing" | "done" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [flashAvailable, setFlashAvailable] = useState(false);
+  const [flashBusy, setFlashBusy] = useState(false);
 
   const processor = useRef(new PuzzleImageProcessor());
   const detector = useRef(new PuzzlePieceDetector());
 
-  const stopCamera = useCallback(() => {
+  const stopCamera = useCallback(async () => {
+    const track = trackRef.current;
+    if (track) {
+      await setTorch(track, false);
+      track.stop();
+    }
     const video = videoRef.current;
     const stream = video?.srcObject as MediaStream | null;
     stream?.getTracks().forEach((t) => t.stop());
     if (video) video.srcObject = null;
+    trackRef.current = null;
     setCameraOn(false);
+    setFlashOn(false);
+    setFlashAvailable(false);
   }, []);
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1440 },
+        },
         audio: false,
       });
+      const track = stream.getVideoTracks()[0] ?? null;
+      trackRef.current = track;
+      const supportsTorch = trackSupportsTorch(track);
+      setFlashAvailable(supportsTorch);
+      setFlashOn(false);
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
       setCameraOn(true);
       setStatus("camera");
-      setMessage(null);
+      setMessage(
+        supportsTorch
+          ? "Flash disponible — active-le si la lumière est insuffisante."
+          : "Flash non disponible sur cet appareil / navigateur.",
+      );
     } catch {
       setStatus("error");
       setMessage("Caméra indisponible — importe une photo depuis la galerie.");
     }
   };
 
-  const captureFromCamera = () => {
+  const toggleFlash = async () => {
+    if (!flashAvailable || flashBusy) return;
+    setFlashBusy(true);
+    const next = !flashOn;
+    const ok = await setTorch(trackRef.current, next);
+    setFlashBusy(false);
+    if (!ok) {
+      setFlashAvailable(false);
+      setFlashOn(false);
+      setMessage("Impossible d'activer le flash sur cet appareil.");
+      return;
+    }
+    setFlashOn(next);
+    setMessage(next ? "Flash allumé." : "Flash éteint.");
+  };
+
+  const captureFromCamera = async () => {
     const video = videoRef.current;
     if (!video) return;
+
+    // Brief torch pulse if flash was off but available — improves low-light shots
+    let pulsed = false;
+    if (flashAvailable && !flashOn) {
+      pulsed = await setTorch(trackRef.current, true);
+      if (pulsed) {
+        await new Promise((r) => setTimeout(r, 180));
+      }
+    } else if (flashOn) {
+      // keep continuous torch for a short settle before shutter
+      await new Promise((r) => setTimeout(r, 80));
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 720;
@@ -75,8 +165,13 @@ export function ScannerPanel({
     ctx.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
     setPreview(dataUrl);
-    stopCamera();
+
+    if (pulsed) {
+      await setTorch(trackRef.current, false);
+    }
+    await stopCamera();
     setStatus("idle");
+    setMessage("Photo capturée — vérifie l'aperçu puis lance l'analyse.");
   };
 
   const onFile = async (file: File | null) => {
@@ -176,6 +271,35 @@ export function ScannerPanel({
             </p>
           </div>
         )}
+
+        {cameraOn && (
+          <div className="absolute right-3 top-3 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={!flashAvailable || flashBusy}
+              onClick={() => void toggleFlash()}
+              className={`min-h-12 min-w-12 rounded-full border px-3 text-xs font-semibold tracking-wide shadow-lg backdrop-blur ${
+                flashOn
+                  ? "border-amber-300/60 bg-amber-400 text-black"
+                  : flashAvailable
+                    ? "border-white/20 bg-black/55 text-white"
+                    : "border-white/10 bg-black/40 text-zinc-500"
+              }`}
+              aria-pressed={flashOn}
+              aria-label={flashOn ? "Éteindre le flash" : "Allumer le flash"}
+              title={
+                flashAvailable
+                  ? flashOn
+                    ? "Éteindre le flash"
+                    : "Allumer le flash"
+                  : "Flash non disponible"
+              }
+            >
+              {flashOn ? "Flash ON" : "Flash"}
+            </button>
+          </div>
+        )}
+
         {status === "analyzing" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70">
             <div className="animate-pulse text-sm text-cyan-200">Analyse des pièces…</div>
@@ -204,7 +328,16 @@ export function ScannerPanel({
         {!cameraOn ? (
           <PrimaryButton onClick={() => void startCamera()}>Photo</PrimaryButton>
         ) : (
-          <PrimaryButton onClick={captureFromCamera}>Capturer</PrimaryButton>
+          <PrimaryButton onClick={() => void captureFromCamera()}>Capturer</PrimaryButton>
+        )}
+        {cameraOn && (
+          <PrimaryButton
+            variant={flashOn ? "primary" : "ghost"}
+            disabled={!flashAvailable || flashBusy}
+            onClick={() => void toggleFlash()}
+          >
+            {flashOn ? "Flash ON" : "Flash"}
+          </PrimaryButton>
         )}
         <PrimaryButton variant="ghost" onClick={() => inputRef.current?.click()}>
           Importer
@@ -219,7 +352,7 @@ export function ScannerPanel({
       </PrimaryButton>
 
       {cameraOn && (
-        <PrimaryButton variant="ghost" onClick={stopCamera}>
+        <PrimaryButton variant="ghost" onClick={() => void stopCamera()}>
           Fermer la caméra
         </PrimaryButton>
       )}
