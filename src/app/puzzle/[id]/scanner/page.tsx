@@ -39,6 +39,7 @@ export default function ScannerPage() {
 
           <ScannerPanel
             puzzleId={project.id}
+            initialPreview={project.scans[0]?.imageDataUrl ?? null}
             onDetected={({ scan, pieces, warnings }) => {
               const next = applyScanToProject(project, scan, pieces, store);
               void update(next);
