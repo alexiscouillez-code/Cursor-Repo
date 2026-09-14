@@ -133,7 +133,7 @@ export class PuzzleMatchingEngine {
     pieceB: PuzzlePiece,
     sideA: EdgeSide,
     sideB: EdgeSide,
-    extras?: { aiVisual?: number | null; referenceContext?: number | null },
+    extras?: { referenceContext?: number | null },
   ): PieceMatch {
     const edgeA = pieceA.edges.find((e) => e.side === sideA)!;
     const edgeB = pieceB.edges.find((e) => e.side === sideB)!;
@@ -183,7 +183,6 @@ export class PuzzleMatchingEngine {
       explanations.push({ label: "motif potentiellement continu", positive: true });
     }
 
-    const aiVisual = extras?.aiVisual ?? null;
     const referenceContext = extras?.referenceContext ?? this.referenceBonus(pieceA, pieceB);
 
     if (referenceContext !== null && referenceContext > 50) {
@@ -195,7 +194,6 @@ export class PuzzleMatchingEngine {
       color,
       texture,
       continuity,
-      aiVisual,
       referenceContext,
       global: 0,
     });
@@ -238,10 +236,6 @@ export class PuzzleMatchingEngine {
       parts.texture * w.texture +
       parts.continuity * w.continuity;
 
-    if (parts.aiVisual !== null) {
-      totalW += w.aiVisual;
-      sum += parts.aiVisual * w.aiVisual;
-    }
     if (parts.referenceContext !== null) {
       totalW += w.referenceContext;
       sum += parts.referenceContext * w.referenceContext;

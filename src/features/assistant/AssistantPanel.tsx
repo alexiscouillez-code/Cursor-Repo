@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PuzzleAIAssistant } from "@/lib/ai/PuzzleAIAssistant";
+import { PuzzleAssistant } from "@/lib/analysis/PuzzleAssistant";
 import type { AssistantReply, PuzzleProject } from "@/types/puzzle";
 import { BottomSheet, PrimaryButton } from "@/components/ui/Sheet";
 
@@ -14,7 +14,7 @@ export function AssistantPanel({
   open: boolean;
   onClose: () => void;
 }) {
-  const assistant = useMemo(() => new PuzzleAIAssistant(), []);
+  const assistant = useMemo(() => new PuzzleAssistant(), []);
   const [question, setQuestion] = useState("");
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [seededForOpen, setSeededForOpen] = useState(false);
@@ -27,22 +27,8 @@ export function AssistantPanel({
     setSeededForOpen(false);
   }
 
-  const ask = async (q: string) => {
-    const local = assistant.answer(project, q);
-    setReply(local);
-    try {
-      const res = await fetch("/api/ai/assist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, project }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as AssistantReply;
-        setReply(data);
-      }
-    } catch {
-      // keep local reply — AI optional
-    }
+  const ask = (q: string) => {
+    setReply(assistant.answer(project, q));
   };
 
   return (
@@ -67,7 +53,7 @@ export function AssistantPanel({
               key={q}
               type="button"
               className="min-h-11 rounded-lg bg-white/5 px-3 text-xs text-zinc-300"
-              onClick={() => void ask(q)}
+              onClick={() => ask(q)}
             >
               {q}
             </button>
@@ -83,7 +69,7 @@ export function AssistantPanel({
           <PrimaryButton
             onClick={() => {
               if (!question.trim()) return;
-              void ask(question);
+              ask(question);
               setQuestion("");
             }}
           >
@@ -103,7 +89,7 @@ export function NextActionButton({
   onOpenAssistant: () => void;
 }) {
   const rec = useMemo(
-    () => new PuzzleAIAssistant().recommendNext(project),
+    () => new PuzzleAssistant().recommendNext(project),
     [project],
   );
 

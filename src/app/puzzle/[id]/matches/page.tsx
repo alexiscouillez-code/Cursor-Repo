@@ -123,8 +123,11 @@ export default function MatchesPage() {
             <ScoreBar label="Color" value={selected.score.color} />
             <ScoreBar label="Texture" value={selected.score.texture} />
             <ScoreBar label="Continuity" value={selected.score.continuity} />
-            {selected.score.aiVisual !== null && (
-              <ScoreBar label="AI visual" value={selected.score.aiVisual} />
+            {selected.score.referenceContext !== null && (
+              <ScoreBar
+                label="Reference"
+                value={selected.score.referenceContext}
+              />
             )}
             <ul className="space-y-1 text-sm text-zinc-300">
               {selected.explanations.map((e) => (

@@ -23,7 +23,7 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Puzzle Solver 2D V5",
   description:
-    "Assistant intelligent de résolution de puzzles — vision, géométrie, matching, groupes.",
+    "Outil de résolution de puzzles — vision, géométrie, matching, groupes (moteur local).",
   applicationName: "Puzzle Solver 2D",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

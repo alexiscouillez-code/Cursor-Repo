@@ -10,7 +10,7 @@ import {
   PuzzleProgressEngine,
   PuzzleReconstructionEngine,
 } from "@/lib/reconstruction/PuzzleReconstructionEngine";
-import { PuzzleReferenceAnalyzer } from "@/lib/ai/PuzzleAIAssistant";
+import { PuzzleReferenceAnalyzer } from "@/lib/analysis/PuzzleReferenceAnalyzer";
 
 const STORAGE_KEY = "puzzle-solver-v5-projects";
 

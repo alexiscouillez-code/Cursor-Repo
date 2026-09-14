@@ -2,8 +2,7 @@
 
 import { useRef, useState } from "react";
 import { usePuzzle } from "@/features/puzzle/PuzzleProvider";
-import { PuzzleReferenceAnalyzer } from "@/lib/ai/PuzzleAIAssistant";
-import type { ReferenceAnalysis } from "@/types/puzzle";
+import { PuzzleReferenceAnalyzer } from "@/lib/analysis/PuzzleReferenceAnalyzer";
 import { PrimaryButton } from "@/components/ui/Sheet";
 
 export default function ReferencePage() {
@@ -46,23 +45,19 @@ export default function ReferencePage() {
 
   const analyze = async () => {
     setBusy(true);
-    setStatus("Analyse des zones…");
-    const colors =
-      project.pieces[0]?.colors.dominantColors ??
-      ["#6BA3C7", "#2F5D3A", "#8B7355"];
-
+    setStatus("Analyse des zones (moteur local)…");
+    const analyzer = new PuzzleReferenceAnalyzer();
     try {
-      const res = await fetch("/api/ai/analyze-reference", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageDataUrl: project.referenceImageDataUrl?.slice(0, 1_500_000),
-          dominantColors: colors,
-        }),
-      });
-      const analysis = (await res.json()) as ReferenceAnalysis;
+      const analysis = project.referenceImageDataUrl
+        ? await analyzer.analyzeImageDataUrl(project.referenceImageDataUrl)
+        : analyzer.analyzeFromColors(
+            project.pieces[0]?.colors.dominantColors ?? [
+              "#6BA3C7",
+              "#2F5D3A",
+              "#8B7355",
+            ],
+          );
 
-      const analyzer = new PuzzleReferenceAnalyzer();
       const pieces = project.pieces.map((p) => ({
         ...p,
         regionHint: analyzer.classifyPieceRegion(p, analysis),
@@ -74,16 +69,10 @@ export default function ReferencePage() {
         pieces,
       });
       setStatus(
-        analysis.source === "ai"
-          ? `IA : ${analysis.regions.length} zones`
-          : `Heuristique (IA optionnelle) : ${analysis.regions.length} zones`,
+        `${analysis.source === "engine" ? "Moteur" : "Heuristique"} : ${analysis.regions.length} zone(s)`,
       );
     } catch {
-      const fallback = new PuzzleReferenceAnalyzer().analyzeHeuristicFromColors(
-        colors,
-      );
-      update({ ...project, referenceAnalysis: fallback });
-      setStatus("IA indisponible — analyse heuristique appliquée.");
+      setStatus("Échec de l'analyse locale.");
     } finally {
       setBusy(false);
     }
@@ -96,6 +85,9 @@ export default function ReferencePage() {
           Image de référence
         </p>
         <h1 className="text-2xl text-white">Boîte / puzzle terminé</h1>
+        <p className="mt-1 text-xs text-zinc-500">
+          Analyse locale par grille couleur — sans IA externe
+        </p>
       </header>
 
       <div className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-black">
@@ -141,6 +133,7 @@ export default function ReferencePage() {
           <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
             Régions ({project.referenceAnalysis.source})
           </h2>
+          <p className="text-xs text-zinc-500">{project.referenceAnalysis.summary}</p>
           {project.referenceAnalysis.regions.map((r) => (
             <div
               key={`${r.name}-${r.position}`}
@@ -149,6 +142,7 @@ export default function ReferencePage() {
               <div className="text-white">{r.name}</div>
               <div className="text-xs text-zinc-500">
                 {r.position} · {(r.confidence * 100).toFixed(0)}%
+                {r.colorHints?.length ? ` · ${r.colorHints.join(", ")}` : ""}
               </div>
             </div>
           ))}
@@ -159,12 +153,15 @@ export default function ReferencePage() {
         <h2 className="text-xs uppercase tracking-[0.2em] text-zinc-500">
           Classification pièces
         </h2>
-        {project.pieces.filter((p) => p.regionHint).slice(0, 20).map((p) => (
-          <div key={p.id} className="text-sm text-zinc-300">
-            {p.code} → {p.regionHint?.name} (
-            {((p.regionHint?.confidence ?? 0) * 100).toFixed(0)}%)
-          </div>
-        ))}
+        {project.pieces
+          .filter((p) => p.regionHint)
+          .slice(0, 20)
+          .map((p) => (
+            <div key={p.id} className="text-sm text-zinc-300">
+              {p.code} → {p.regionHint?.name} (
+              {((p.regionHint?.confidence ?? 0) * 100).toFixed(0)}%)
+            </div>
+          ))}
         {project.pieces.every((p) => !p.regionHint) && (
           <p className="text-sm text-zinc-500">
             Lance une analyse pour classer les pièces par zone.

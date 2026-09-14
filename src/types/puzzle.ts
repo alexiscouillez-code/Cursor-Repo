@@ -94,7 +94,6 @@ export interface MatchScoreBreakdown {
   color: number;
   texture: number;
   continuity: number;
-  aiVisual: number | null;
   referenceContext: number | null;
   global: number;
 }
@@ -104,16 +103,14 @@ export interface MatchWeights {
   color: number;
   texture: number;
   continuity: number;
-  aiVisual: number;
   referenceContext: number;
 }
 
 export const DEFAULT_MATCH_WEIGHTS: MatchWeights = {
-  geometry: 0.4,
-  color: 0.15,
-  texture: 0.15,
+  geometry: 0.45,
+  color: 0.18,
+  texture: 0.17,
   continuity: 0.15,
-  aiVisual: 0.1,
   referenceContext: 0.05,
 };
 
@@ -186,7 +183,7 @@ export interface ReferenceAnalysis {
   regions: ReferenceRegion[];
   summary: string;
   confidence: number;
-  source: "ai" | "heuristic" | "unavailable";
+  source: "engine" | "heuristic" | "unavailable";
 }
 
 export interface PuzzleScan {

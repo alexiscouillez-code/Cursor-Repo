@@ -9,7 +9,11 @@ import { PuzzlePieceAnalyzer } from "@/lib/geometry/PuzzlePieceAnalyzer";
 import { PuzzleMatchingEngine } from "@/lib/matching/PuzzleMatchingEngine";
 import { PuzzleGroupEngine } from "@/lib/reconstruction/PuzzleGroupEngine";
 import { PuzzleProgressEngine } from "@/lib/reconstruction/PuzzleReconstructionEngine";
-import { PuzzleAIAssistant, parseReferenceAnalysis } from "@/lib/ai/PuzzleAIAssistant";
+import { PuzzleAssistant } from "@/lib/analysis/PuzzleAssistant";
+import {
+  parseReferenceAnalysis,
+  PuzzleReferenceAnalyzer,
+} from "@/lib/analysis/PuzzleReferenceAnalyzer";
 import type { PieceMatch, PuzzlePiece, PuzzleProject } from "@/types/puzzle";
 
 function makePiece(
@@ -191,7 +195,6 @@ describe("groups", () => {
         color: 80,
         texture: 70,
         continuity: 70,
-        aiVisual: null,
         referenceContext: null,
         global: 85,
       },
@@ -226,7 +229,6 @@ describe("groups", () => {
         color: 80,
         texture: 70,
         continuity: 70,
-        aiVisual: null,
         referenceContext: null,
         global: 85,
       },
@@ -269,14 +271,57 @@ describe("progress", () => {
   });
 });
 
-describe("AI assistant & reference", () => {
-  it("parses invalid AI payload safely", () => {
+describe("assistant & reference analyzer", () => {
+  it("parses invalid analysis payload safely", () => {
     const parsed = parseReferenceAnalysis({ foo: "bar" });
     expect(parsed.source).toBe("unavailable");
   });
 
+  it("classifies color palette into regions without AI", () => {
+    const analyzer = new PuzzleReferenceAnalyzer();
+    const analysis = analyzer.analyzeFromColors([
+      "#87CEEB",
+      "#228B22",
+      "#6B4F2A",
+    ]);
+    expect(analysis.source).toBe("heuristic");
+    expect(analysis.regions.length).toBeGreaterThan(0);
+  });
+
+  it("analyzes synthetic ImageData into engine regions", () => {
+    const width = 90;
+    const height = 90;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (y < 30) {
+          data[i] = 120;
+          data[i + 1] = 180;
+          data[i + 2] = 240;
+        } else if (y < 60) {
+          data[i] = 40;
+          data[i + 1] = 140;
+          data[i + 2] = 50;
+        } else {
+          data[i] = 120;
+          data[i + 1] = 90;
+          data[i + 2] = 40;
+        }
+        data[i + 3] = 255;
+      }
+    }
+    const imageData = { data, width, height, colorSpace: "srgb" } as ImageData;
+    const analysis = new PuzzleReferenceAnalyzer().analyzeImageData(imageData);
+    expect(analysis.source).toBe("engine");
+    expect(analysis.regions.some((r) => r.name === "sky")).toBe(true);
+    expect(analysis.regions.some((r) => r.name === "forest" || r.name === "ground")).toBe(
+      true,
+    );
+  });
+
   it("answers from engine data only", () => {
-    const assistant = new PuzzleAIAssistant();
+    const assistant = new PuzzleAssistant();
     const project = {
       id: "p1",
       name: "Test",
@@ -318,7 +363,7 @@ describe("AI assistant & reference", () => {
   });
 
   it("does not invent match scores", () => {
-    const assistant = new PuzzleAIAssistant();
+    const assistant = new PuzzleAssistant();
     const project = {
       id: "p1",
       name: "Test",

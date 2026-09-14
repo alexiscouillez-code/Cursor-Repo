@@ -22,8 +22,8 @@ export default function HomePage() {
           V5
         </h1>
         <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-400">
-          Moteur géométrie → matching → groupes. L&apos;IA assiste, elle
-          n&apos;invente pas.
+          Moteur géométrie → matching → groupes. Analyse locale, sans IA
+          externe.
         </p>
       </header>
 

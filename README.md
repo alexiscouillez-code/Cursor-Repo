@@ -1,34 +1,31 @@
 # Puzzle Solver 2D V5
 
-Assistant intelligent de résolution de puzzles physiques à partir de photos.
+Assistant de résolution de puzzles physiques à partir de photos.
+**Moteur local uniquement** — pas d’IA générative externe.
 
 ## Architecture
 
 ```
 PHOTO → COMPUTER VISION → GÉOMÉTRIE → FEATURES → MATCHING → GROUPES → RECONSTRUCTION
-                              ↑
-                     VISION IA (optionnelle)
+                ↓
+     ANALYSE RÉFÉRENCE (grille couleur locale)
+                ↓
+         ASSISTANT MOTEUR
 ```
-
-L’IA est un module d’assistance. Si elle est indisponible, le moteur géométrique continue de fonctionner.
 
 ## Stack
 
-- Next.js (App Router) + React + TypeScript + Tailwind CSS
-- Canvas / pipeline CV maison (interface compatible OpenCV.js)
-- Supabase (schéma + RLS) — optionnel au runtime (stockage local Indexed via `localStorage`)
-- APIs serveur pour l’IA (`OPENAI_API_KEY` / `AI_API_KEY` jamais exposées au client)
-- PWA (manifest)
+- Next.js + React + TypeScript + Tailwind
+- Canvas / CV maison
+- Supabase schema optionnel
+- PWA
 
 ## Démarrage
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
-
-Tests :
 
 ```bash
 npm test
@@ -39,21 +36,16 @@ npm run build
 
 | Classe | Rôle |
 |--------|------|
-| `PuzzleImageProcessor` | Chargement / rotation / ImageData |
-| `PuzzlePieceDetector` | Segmentation + numérotation P001… |
-| `PuzzlePieceAnalyzer` | Géométrie, couleurs, textures, côtés |
-| `PuzzleMatchingEngine` | Candidats filtrés + score 0–100 |
-| `PuzzleGroupEngine` | GROUP001… + merge pièce/groupe |
-| `PuzzleReconstructionEngine` | Placements canvas |
+| `PuzzleImageProcessor` | Chargement / rotation |
+| `PuzzlePieceDetector` | Segmentation + P001… |
+| `PuzzlePieceAnalyzer` | Géométrie, couleurs, textures |
+| `PuzzleMatchingEngine` | Candidats + score 0–100 |
+| `PuzzleGroupEngine` | Groupes + undo |
+| `PuzzleReconstructionEngine` | Canvas |
 | `PuzzleProgressEngine` | Progression multi-facteurs |
-| `PuzzleReferenceAnalyzer` | Zones référence (IA ou heuristique) |
-| `PuzzleAIAssistant` | « Que faire maintenant ? » sur données réelles |
+| `PuzzleReferenceAnalyzer` | Zones image (analyse locale) |
+| `PuzzleAssistant` | « Que faire maintenant ? » |
 
-## Phases
+## Analyse de référence
 
-Voir `docs/MIGRATION_PLAN.md`.
-
-## Supabase
-
-Appliquer `supabase/migrations/20260326000000_init_puzzle_solver.sql`.
-Sans credentials, l’app fonctionne en local-first.
+Grille 3×3 → classification couleur (ciel / eau / forêt / sol / bâtiment / objet) → JSON structuré avec confiance. Aucune clé API.
